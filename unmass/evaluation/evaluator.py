@@ -97,7 +97,7 @@ class Evaluator(object):
 
             assert lang1 < lang2
 
-            for data_set in ['valid', 'test']:
+            for data_set in ['valid']: # 'test' was removed here
 
                 # define data paths
                 lang1_path = os.path.join(params.hyp_path, 'ref.{0}-{1}.{2}.txt'.format(lang2, lang1, data_set))
@@ -168,7 +168,7 @@ class Evaluator(object):
 
         with torch.no_grad():
 
-            for data_set in ['valid', 'test']:
+            for data_set in ['valid']: # 'test' was removed here
 
                 # causal prediction task (evaluate perplexity and accuracy)
                 for lang1, lang2 in params.clm_steps:
