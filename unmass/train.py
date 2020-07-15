@@ -337,9 +337,7 @@ def main(params):
         trainer.save_periodic()
         trainer.end_epoch(scores)
 
-
-if __name__ == '__main__':
-
+def cli():
     # generate parser / parse parameters
     parser = get_parser()
     params = parser.parse_args()
@@ -350,3 +348,6 @@ if __name__ == '__main__':
 
     # run experiment
     main(params)
+
+if __name__ == '__main__':
+    cli()

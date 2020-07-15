@@ -44,7 +44,7 @@ setuptools.setup(
     scripts=['scripts/unmass-prep', 'scripts/unmass-install-tools.sh'],
     entry_points={
         'console_scripts': [
-            'unmass-train=unmass.train:main',
+            'unmass-train=unmass.train:cli',
         ],
     }
 )
