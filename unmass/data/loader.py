@@ -13,7 +13,6 @@ import torch
 from .dataset import Dataset, StreamDataset, ParallelDataset
 from .dictionary import BOS_WORD, EOS_WORD, PAD_WORD, UNK_WORD, MASK_WORD
 
-
 logger = getLogger()
 
 
@@ -24,12 +23,14 @@ def process_binarized(data, params):
     dico = data['dico']
     assert ((data['sentences'].dtype == np.uint16) and (len(dico) < 1 << 16) or
             (data['sentences'].dtype == np.int32) and (1 << 16 <= len(dico) < 1 << 31))
-    logger.info("%i words (%i unique) in %i sentences. %i unknown words (%i unique) covering %.2f%% of the data." % (
-        len(data['sentences']) - len(data['positions']),
-        len(dico), len(data['positions']),
-        sum(data['unk_words'].values()), len(data['unk_words']),
-        100. * sum(data['unk_words'].values()) / (len(data['sentences']) - len(data['positions']))
-    ))
+    logger.info(
+        "%i words (%i unique) in %i sentences. %i unknown words (%i unique) covering %.2f%% of the data." % (
+            len(data['sentences']) - len(data['positions']),
+            len(dico), len(data['positions']),
+            sum(data['unk_words'].values()), len(data['unk_words']),
+            100. * sum(data['unk_words'].values()) / (
+                        len(data['sentences']) - len(data['positions']))
+        ))
     if params.max_vocab != -1:
         assert params.max_vocab > 0
         logger.info("Selecting %i most frequent words ..." % params.max_vocab)
@@ -37,14 +38,16 @@ def process_binarized(data, params):
         data['sentences'][data['sentences'] >= params.max_vocab] = dico.index(UNK_WORD)
         unk_count = (data['sentences'] == dico.index(UNK_WORD)).sum()
         logger.info("Now %i unknown words covering %.2f%% of the data."
-                    % (unk_count, 100. * unk_count / (len(data['sentences']) - len(data['positions']))))
+                    % (unk_count,
+                       100. * unk_count / (len(data['sentences']) - len(data['positions']))))
     if params.min_count > 0:
         logger.info("Selecting words with >= %i occurrences ..." % params.min_count)
         dico.min_count(params.min_count)
         data['sentences'][data['sentences'] >= len(dico)] = dico.index(UNK_WORD)
         unk_count = (data['sentences'] == dico.index(UNK_WORD)).sum()
         logger.info("Now %i unknown words covering %.2f%% of the data."
-                    % (unk_count, 100. * unk_count / (len(data['sentences']) - len(data['positions']))))
+                    % (unk_count,
+                       100. * unk_count / (len(data['sentences']) - len(data['positions']))))
     if (data['sentences'].dtype == np.int32) and (len(dico) < 1 << 16):
         logger.info("Less than 65536 words. Moving data from int32 to uint16 ...")
         data['sentences'] = data['sentences'].astype(np.uint16)
@@ -127,10 +130,12 @@ def load_mono_data(params, data):
             set_dico_parameters(params, data, mono_data['dico'])
 
             # create stream dataset
-            data['mono_stream'][lang][splt] = StreamDataset(mono_data['sentences'], mono_data['positions'], params)
+            data['mono_stream'][lang][splt] = StreamDataset(mono_data['sentences'],
+                                                            mono_data['positions'], params)
 
             # if there are several processes on the same machine, we can split the dataset
-            if splt == 'train' and params.split_data and 1 < params.n_gpu_per_node <= data['mono_stream'][lang][splt].n_batches:
+            if splt == 'train' and params.split_data and 1 < params.n_gpu_per_node <= \
+                    data['mono_stream'][lang][splt].n_batches:
                 n_batches = data['mono_stream'][lang][splt].n_batches // params.n_gpu_per_node
                 a = n_batches * params.local_rank
                 b = n_batches * params.local_rank + n_batches
@@ -168,7 +173,8 @@ def load_para_data(params, data):
     """
     data['para'] = {}
 
-    required_para_train = set(params.clm_steps + params.mlm_steps + params.pc_steps + params.mt_steps)
+    required_para_train = set(
+        params.clm_steps + params.mlm_steps + params.pc_steps + params.mt_steps)
 
     for src, tgt in params.para_dataset.keys():
 
@@ -184,7 +190,8 @@ def load_para_data(params, data):
                 continue
 
             # for back-translation, we can't load training data
-            if splt == 'train' and (src, tgt) not in required_para_train and (tgt, src) not in required_para_train:
+            if splt == 'train' and (src, tgt) not in required_para_train and (
+            tgt, src) not in required_para_train:
                 continue
 
             # load binarized datasets
@@ -226,7 +233,6 @@ def load_para_data(params, data):
 
 
 def load_back_data(params, data):
-
     data['back'] = {}
 
     required_back_train = set(params.bmt_steps)
@@ -234,7 +240,7 @@ def load_back_data(params, data):
     for src, tgt in params.back_dataset.keys():
 
         logger.info('============ Back Parallel data (%s-%s)' % (src, tgt))
-        
+
         assert (src, tgt) not in data['back']
         data['back'][(src, tgt)] = {}
 
@@ -243,7 +249,7 @@ def load_back_data(params, data):
 
         src_data = load_binarized(src_path, params)
         tgt_data = load_binarized(tgt_path, params)
-        
+
         set_dico_parameters(params, data, src_data['dico'])
         set_dico_parameters(params, data, tgt_data['dico'])
 
@@ -261,7 +267,7 @@ def load_back_data(params, data):
             a = n_sent * params.local_rank
             b = n_sent * params.local_rank + n_sent
             dataset.select_data(a, b)
-        
+
         data['back'][(src, tgt)] = dataset
         logger.info("")
 
@@ -284,13 +290,15 @@ def check_data_params(params):
     # CLM steps
     clm_steps = [s.split('-') for s in params.clm_steps.split(',') if len(s) > 0]
     params.clm_steps = [(s[0], None) if len(s) == 1 else tuple(s) for s in clm_steps]
-    assert all([(l1 in params.langs) and (l2 in params.langs or l2 is None) for l1, l2 in params.clm_steps])
+    assert all([(l1 in params.langs) and (l2 in params.langs or l2 is None) for l1, l2 in
+                params.clm_steps])
     assert len(params.clm_steps) == len(set(params.clm_steps))
 
     # MLM / TLM steps
     mlm_steps = [s.split('-') for s in params.mlm_steps.split(',') if len(s) > 0]
     params.mlm_steps = [(s[0], None) if len(s) == 1 else tuple(s) for s in mlm_steps]
-    assert all([(l1 in params.langs) and (l2 in params.langs or l2 is None) for l1, l2 in params.mlm_steps])
+    assert all([(l1 in params.langs) and (l2 in params.langs or l2 is None) for l1, l2 in
+                params.mlm_steps])
     assert len(params.mlm_steps) == len(set(params.mlm_steps))
 
     # parallel classification steps
@@ -316,7 +324,7 @@ def check_data_params(params):
     assert all([lang in params.langs for lang in params.ae_steps])
     assert len(params.ae_steps) == len(set(params.ae_steps))
     assert len(params.ae_steps) == 0 or not params.encoder_only
-    
+
     # mass steps
     params.mass_steps = [s for s in params.mass_steps.split(',') if len(s) > 0]
     mass_steps = []
@@ -328,48 +336,57 @@ def check_data_params(params):
     # back-translation steps
     params.bt_steps = [tuple(s.split('-')) for s in params.bt_steps.split(',') if len(s) > 0]
     assert all([len(x) == 3 for x in params.bt_steps])
-    assert all([l1 in params.langs and l2 in params.langs and l3 in params.langs for l1, l2, l3 in params.bt_steps])
+    assert all([l1 in params.langs and l2 in params.langs and l3 in params.langs for l1, l2, l3 in
+                params.bt_steps])
     assert all([l1 == l3 and l1 != l2 for l1, l2, l3 in params.bt_steps])
     assert len(params.bt_steps) == len(set(params.bt_steps))
     assert len(params.bt_steps) == 0 or not params.encoder_only
     params.bt_src_langs = [l1 for l1, _, _ in params.bt_steps]
 
     # check monolingual datasets
-    required_mono = set([l1 for l1, l2 in (params.mlm_steps + params.clm_steps) if l2 is None] + params.ae_steps + params.bt_src_langs + params.mass_steps)
+    required_mono = set([l1 for l1, l2 in (params.mlm_steps + params.clm_steps) if
+                         l2 is None] + params.ae_steps + params.bt_src_langs + params.mass_steps)
     params.mono_dataset = {
         lang: {
             splt: os.path.join(params.data_path, '%s.%s.pth' % (splt, lang))
-            for splt in ['train', 'valid', 'test']
+            for splt in ['train', 'valid']
         } for lang in params.langs if lang in required_mono
     }
-    assert all([all([os.path.isfile(p) for p in paths.values()]) for paths in params.mono_dataset.values()])
+    for paths in params.mono_dataset.values():
+        bad_ps = [p for p in paths.values() if not os.path.isfile(p)]
+        assert not bad_ps, f'These files are not found:\n {" ".join(bad_ps)}'
 
     # check parallel datasets
-    required_para_train = set(params.clm_steps + params.mlm_steps + params.pc_steps + params.mt_steps)
-    required_para = required_para_train | set([(l2, l3) for _, l2, l3 in params.bt_steps] + mass_steps)
+    required_para_train = set(
+        params.clm_steps + params.mlm_steps + params.pc_steps + params.mt_steps)
+    required_para = required_para_train | set(
+        [(l2, l3) for _, l2, l3 in params.bt_steps] + mass_steps)
     params.para_dataset = {
         (src, tgt): {
             splt: (os.path.join(params.data_path, '%s.%s-%s.%s.pth' % (splt, src, tgt, src)),
                    os.path.join(params.data_path, '%s.%s-%s.%s.pth' % (splt, src, tgt, tgt)))
-            for splt in ['train', 'valid', 'test']
-            if splt != 'train' or (src, tgt) in required_para_train or (tgt, src) in required_para_train
+            for splt in ['train', 'valid']
+            if splt != 'train' or (src, tgt) in required_para_train or (
+            tgt, src) in required_para_train
         } for src in params.langs for tgt in params.langs
         if src < tgt and ((src, tgt) in required_para or (tgt, src) in required_para)
     }
-    assert all([all([os.path.isfile(p1) and os.path.isfile(p2) for p1, p2 in paths.values()]) for paths in params.para_dataset.values()])
-    
+    assert all(
+        [all([os.path.isfile(p1) and os.path.isfile(p2) for p1, p2 in paths.values()]) for paths in
+         params.para_dataset.values()])
+
     # back parallel datasets
     params.back_dataset = {
         (src, tgt): (
             os.path.join(params.data_path, '%s-%s.%s.pth' % (src, tgt, src)),
             os.path.join(params.data_path, '%s-%s.%s.pth' % (src, tgt, tgt))
-        ) for (src, tgt) in params.bmt_steps        
+        ) for (src, tgt) in params.bmt_steps
     }
 
     # check that we can evaluate on BLEU
     assert params.eval_bleu is False or len(params.mt_steps + params.bt_steps + mass_steps) > 0
-    
-  
+
+
 def load_data(params):
     """
     Load monolingual data.
@@ -385,7 +402,7 @@ def load_data(params):
 
     # parallel datasets
     load_para_data(params, data)
-    
+
     # back translation datasets
     load_back_data(params, data)
 
@@ -393,12 +410,16 @@ def load_data(params):
     logger.info('============ Data summary')
     for lang, v in data['mono_stream'].items():
         for data_set in v.keys():
-            logger.info('{: <18} - {: >5} - {: >12}:{: >10}'.format('Monolingual data', data_set, lang, len(v[data_set])))
+            logger.info(
+                '{: <18} - {: >5} - {: >12}:{: >10}'.format('Monolingual data', data_set, lang,
+                                                            len(v[data_set])))
 
     # parallel data summary
     for (src, tgt), v in data['para'].items():
         for data_set in v.keys():
-            logger.info('{: <18} - {: >5} - {: >12}:{: >10}'.format('Parallel data', data_set, '%s-%s' % (src, tgt), len(v[data_set])))
+            logger.info('{: <18} - {: >5} - {: >12}:{: >10}'.format('Parallel data', data_set,
+                                                                    '%s-%s' % (src, tgt),
+                                                                    len(v[data_set])))
 
     logger.info("")
     return data
