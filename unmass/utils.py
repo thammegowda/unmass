@@ -389,3 +389,16 @@ def shuf_order(langs, params=None, n=5):
 
     assert len(s_mono) + len(s_para) > 0
     return [(lang, None) for lang in s_mono] + s_para
+
+
+def read_lines(path, mem=False):
+    """
+    :param path: path to read line
+    :param mem: default=False => return generator; True => load all into list,
+    :return:
+    """
+    with open(path, encoding='utf-8', errors='ignore') as f:
+        lines = f.readlines()
+    if mem:
+        lines = list(lines)
+    return lines
