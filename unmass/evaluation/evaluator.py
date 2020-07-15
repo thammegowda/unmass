@@ -11,12 +11,9 @@ import subprocess
 from collections import OrderedDict
 import numpy as np
 import torch
+import sacrebleu
 
-from ..utils import to_cuda, restore_segmentation, concat_batches
-
-
-BLEU_SCRIPT_PATH = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'multi-bleu.perl')
-assert os.path.isfile(BLEU_SCRIPT_PATH)
+from ..utils import to_cuda, restore_segmentation, concat_batches, read_lines
 
 
 logger = getLogger()
@@ -167,9 +164,8 @@ class Evaluator(object):
         scores = OrderedDict({'epoch': trainer.epoch})
 
         with torch.no_grad():
-
             for data_set in ['valid']: # 'test' was removed here
-
+                logger.info(f"Evaluating on {data_set}")
                 # causal prediction task (evaluate perplexity and accuracy)
                 for lang1, lang2 in params.clm_steps:
                     self.evaluate_clm(scores, data_set, lang1, lang2)
@@ -562,19 +558,15 @@ def convert_to_text(batch, lengths, dico, params):
     return sentences
 
 
+
 def eval_moses_bleu(ref, hyp):
     """
     Given a file of hypothesis and reference files,
-    evaluate the BLEU score using Moses scripts.
+    evaluate the BLEU score using sacrebleu
     """
     assert os.path.isfile(hyp)
     assert os.path.isfile(ref) or os.path.isfile(ref + '0')
-    assert os.path.isfile(BLEU_SCRIPT_PATH)
-    command = BLEU_SCRIPT_PATH + ' %s < %s'
-    p = subprocess.Popen(command % (ref, hyp), stdout=subprocess.PIPE, shell=True)
-    result = p.communicate()[0].decode("utf-8")
-    if result.startswith('BLEU'):
-        return float(result[7:result.index(',')])
-    else:
-        logger.warning('Impossible to parse BLEU score! "%s"' % result)
-        return -1
+    refs = [read_lines(ref, mem=True)] # List[List[str]]
+    hyps = read_lines(hyp, mem=True) # List[str]
+    bleu = sacrebleu.corpus_bleu(hyps, refs)
+    return bleu.score
