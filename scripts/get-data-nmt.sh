@@ -141,7 +141,7 @@ if [ "$SRC" == "en" -a "$TGT" == "ro" ]; then
 fi
 
 # install tools
-./install-tools.sh
+./unmass-install-tools.sh
 
 
 #

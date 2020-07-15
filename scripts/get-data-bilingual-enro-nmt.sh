@@ -97,7 +97,7 @@ PARA_SRC_TEST=$PARA_PATH/dev/newstest2016-roen-ref.en
 PARA_TGT_TEST=$PARA_PATH/dev/newstest2016-enro-ref.ro
 
 # install tools
-./install-tools.sh
+./unmass-install-tools.sh
 
 #
 # Download monolingual data

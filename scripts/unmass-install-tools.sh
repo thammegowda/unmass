@@ -36,13 +36,13 @@ cd $TOOLS_PATH
 # Download Moses
 if [ ! -d "$MOSES_DIR" ]; then
   echo "Cloning Moses from GitHub repository..."
-  git clone https://github.com/moses-smt/mosesdecoder.git
+  git clone --depth 1 https://github.com/moses-smt/mosesdecoder.git -b master
 fi
 
 # Download fastBPE
 if [ ! -d "$FASTBPE_DIR" ]; then
   echo "Cloning fastBPE from GitHub repository..."
-  git clone https://github.com/glample/fastBPE
+  git clone --depth 1 https://github.com/glample/fastBPE -b master
 fi
 
 # Compile fastBPE
@@ -56,6 +56,6 @@ fi
 # Download Sennrich's tools
 if [ ! -d "$WMT16_SCRIPTS" ]; then
   echo "Cloning WMT16 preprocessing scripts..."
-  git clone https://github.com/rsennrich/wmt16-scripts.git
+  git clone --depth 1 https://github.com/rsennrich/wmt16-scripts.git -b master
 fi
 

@@ -42,6 +42,8 @@ while [[ $# -gt 0 ]]; do
       PARA_VAL_PREF="$2"; shift 2;;
     --data)
       DATA_PATH="$2"; shift 2;;
+    --tools)
+      TOOLS_PATH="$2"; shift 2;;
     --reload_codes)
       RELOAD_CODES="$2"; shift 2;;
     --reload_vocab)
@@ -108,7 +110,8 @@ PROC_PATH=$DATA_PATH/processed/$SRC-$TGT
 # create paths
 [[ -d $TOOLS_PATH ]] || mkdir -p $TOOLS_PATH
 # install tools TODO: pass argument
-$SCRIPTS/install-tools.sh $TOOLS_PATH || {
+
+$SCRIPTS/unmass-install-tools.sh $TOOLS_PATH || {
   echo "Tools setup failed. Exiting..."
   exit 2
 }

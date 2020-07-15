@@ -4,7 +4,6 @@ import re
 
 long_description = Path('README.md').read_text(encoding='utf-8', errors='ignore')
 
-
 vpat = re.compile(r"""__version__\s*=\s*['"]([^'"]*)['"]""")
 __version__ = None
 for line in Path('unmass/__init__.py').read_text().splitlines():
@@ -15,8 +14,9 @@ for line in Path('unmass/__init__.py').read_text().splitlines():
 print(f"Going to install rtg {__version__}")
 assert __version__, 'Could not find __version__ in __init__.py'
 
+
 setuptools.setup(
-    name='rtg',
+    name='unmass',
     version=__version__,
     author="",
     author_email="",
@@ -36,11 +36,12 @@ setuptools.setup(
     install_requires=[
         'ruamel.yaml >= 0.16.10',
         'sacrebleu >= 1.4.6',
-        'sacremoses >= 1.0.0',
+        'sacremoses >= 0.0.43',
         'nlcodec >= 0.2.3',
         'torch >= 1.4'
     ],
     python_requires='>=3.7',
+    scripts=['scripts/unmass-prep', 'scripts/unmass-install-tools.sh'],
     entry_points={
         'console_scripts': [
             'unmass-train=unmass.train:main',
