@@ -230,7 +230,9 @@ def to_cuda(*args):
     """
     Move tensors to CUDA.
     """
-    return [None if x is None else x.cuda() for x in args]
+    if torch.cuda.is_available():
+        args = [None if x is None else x.cuda() for x in args]
+    return args
 
 
 def restore_segmentation(path):
