@@ -119,7 +119,7 @@ def load_mono_data(params, data):
         data['mono'][lang] = {}
         data['mono_stream'][lang] = {}
 
-        for splt in ['train', 'valid', 'test']:
+        for splt in ['train', 'valid']:
 
             # no need to load training data for evaluation
             if splt == 'train' and params.eval_only:
@@ -183,7 +183,7 @@ def load_para_data(params, data):
         assert (src, tgt) not in data['para']
         data['para'][(src, tgt)] = {}
 
-        for splt in ['train', 'valid', 'test']:
+        for splt in ['train', 'valid']:
 
             # no need to load training data for evaluation
             if splt == 'train' and params.eval_only:
