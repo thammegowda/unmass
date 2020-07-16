@@ -11,9 +11,7 @@ for line in Path('unmass/__init__.py').read_text().splitlines():
     if vpat.match(line):
         __version__ = vpat.match(line)[1]
 
-print(f"Going to install rtg {__version__}")
 assert __version__, 'Could not find __version__ in __init__.py'
-
 
 setuptools.setup(
     name='unmass',
@@ -41,7 +39,7 @@ setuptools.setup(
         'torch >= 1.4'
     ],
     python_requires='>=3.7',
-    scripts=['scripts/unmass-prep', 'scripts/unmass-install-tools.sh'],
+    scripts=['scripts/unmass-prep'],
     entry_points={
         'console_scripts': [
             'unmass-train=unmass.train:cli',
