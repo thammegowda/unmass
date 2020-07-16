@@ -119,7 +119,7 @@ class Trainer(object):
         assert isinstance(modules, tuple)
         param_groups = []
         for module in modules:
-            assert module in ['model', 'encoder', 'decoder']
+            assert hasattr(self, module)
             param_groups.extend(getattr(self, module).parameters())
         optimizer = get_optimizer(param_groups, self.params.optimizer)
         if self.params.fp16:
@@ -130,20 +130,20 @@ class Trainer(object):
         """
         Optimize.
         """
-        assert isinstance(modules, (str, tuple))
-
+        modules = [modules] if isinstance(modules, str) else modules
+        name = ','.join(modules)
         # check NaN
         if (loss != loss).data.any():
             logger.error("NaN detected")
             exit()
 
         # zero grad
-        self.optimizers[modules].zero_grad()
+        self.optimizers[name].zero_grad()
 
         # backward
         if self.params.fp16:
             #assert len(modules) == 1, "fp16 not implemented for more than one module"
-            self.optimizers[modules].backward(loss)
+            self.optimizers[name].backward(loss)
         else:
             loss.backward()
 
@@ -151,14 +151,14 @@ class Trainer(object):
         if self.params.clip_grad_norm > 0:
             #for module in modules:
             if self.params.fp16:
-                self.optimizers[modules].clip_master_grads(self.params.clip_grad_norm)
+                self.optimizers[name].clip_master_grads(self.params.clip_grad_norm)
             else:
                 for module in modules:
                     clip_grad_norm_(getattr(self, module).parameters(), self.params.clip_grad_norm)
 
         # optimization step
         #for module in modules:
-        self.optimizers[modules].step()
+        self.optimizers[name].step()
 
     def iter(self):
         """
@@ -186,8 +186,11 @@ class Trainer(object):
                 del self.stats[k][:]
 
         # transformer learning rate
-        lr = self.optimizers[self.MODEL_NAMES[0]].param_groups[0]['lr']
-        s_lr = " - Tfm LR:{:.4e}".format(lr)
+        lr = -1
+        for optim in self.optimizers.values():
+            lr = optim.param_groups[0]['lr']
+            break
+        s_lr = " - Tfm LR: {:.4e}".format(lr)
 
         # processing speed
         new_time = time.time()
@@ -453,7 +456,9 @@ class Trainer(object):
 
         for name in self.MODEL_NAMES:
             data[name] = getattr(self, name).state_dict()
-            data[name + '_optimizer'] = self.optimizers[name].state_dict()
+        data['optimizers'] = {}
+        for name, optim in self.optimizers.items():
+            data['optimizers'][name] = optim.state_dict()
 
         data['dico_id2word'] = self.data['dico'].id2word
         data['dico_word2id'] = self.data['dico'].word2id
@@ -477,7 +482,8 @@ class Trainer(object):
         # reload model parameters and optimizers
         for name in self.MODEL_NAMES:
             getattr(self, name).load_state_dict(data[name])
-            self.optimizers[name].load_state_dict(data[name + '_optimizer'])
+        for name, state in data['optimizers'].items():
+            self.optimizers[name].load_state_dict(state)
 
         # reload main metrics
         self.epoch = data['epoch'] + 1
@@ -729,7 +735,7 @@ class EncDecTrainer(Trainer):
 
     def __init__(self, encoder, decoder, data, params):
 
-        self.MODEL_NAMES = [('encoder', 'decoder')]
+        self.MODEL_NAMES = ['encoder', 'decoder']
 
         # model / data / params
         self.encoder = encoder
@@ -737,12 +743,8 @@ class EncDecTrainer(Trainer):
         self.data = data
         self.params = params
         # optimizers
-        #self.optimizers = {
-        #    'encoder': self.get_optimizer_fp('encoder'),
-        #    'decoder': self.get_optimizer_fp('decoder'),
-        #}
         names = ('encoder', 'decoder')
-        self.optimizers = {names:  self.get_combo_optimizer_fp(names)}
+        self.optimizers = {','.join(names):  self.get_combo_optimizer_fp(names)}
         super().__init__(data, params)
 
     def mask_word(self, w):
