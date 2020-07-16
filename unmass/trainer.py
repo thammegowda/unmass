@@ -734,12 +734,13 @@ class EncDecTrainer(Trainer):
 
     def mask_word(self, w):
         _w_real = w
-        _w_rand = np.random.randint(self.params.n_words, size=w.shape)
-        _w_mask = np.full(w.shape, self.params.mask_index)
+        _w_rand = torch.randint(self.params.n_words, size=w.shape)
+        _w_mask = torch.full(w.shape, self.params.mask_index, dtype=torch.int)
 
         probs = torch.multinomial(self.params.pred_probs, len(_w_real), replacement=True)
 
-        _w = _w_mask * (probs == 0).numpy() + _w_real * (probs == 1).numpy() + _w_rand * (probs == 2).numpy()
+        _w = _w_mask * (probs == 0) + _w_real * (probs == 1) + _w_rand * (probs == 2)
+        
         return _w
 
     def unfold_segments(self, segs):
@@ -760,7 +761,7 @@ class EncDecTrainer(Trainer):
                 curr += l
             else:
                 curr += 1
-        return np.array(pos)
+        return torch.tensor(pos, dtype=torch.long)
 
     def shuffle_segments(self, segs, unmasked_tokens):
         """
@@ -812,11 +813,12 @@ class EncDecTrainer(Trainer):
         segs = self.get_segments(mask_len, span_len)
         
         for i in range(l.size(0)):
-            words = np.array(x[:l[i], i].tolist())
+            #words = np.array(x[:l[i], i].tolist())
+            words = x[:l[i], i].detach()
             shuf_segs = self.shuffle_segments(segs, unmasked_tokens)
             pos_i = self.unfold_segments(shuf_segs)
-            output_i = words[pos_i].copy()
-            target_i = words[pos_i - 1].copy()
+            output_i = words[pos_i].clone()
+            target_i = words[pos_i - 1].clone()
             words[pos_i] = self.mask_word(words[pos_i])
 
             inputs.append(words)
