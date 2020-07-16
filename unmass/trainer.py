@@ -112,12 +112,25 @@ class Trainer(object):
             optimizer = FP16_Optimizer(optimizer, dynamic_loss_scale=True)
         return optimizer
 
+    def get_combo_optimizer_fp(self, modules):
+        """
+        Build optimizer.
+        """
+        assert isinstance(modules, tuple)
+        param_groups = []
+        for module in modules:
+            assert module in ['model', 'encoder', 'decoder']
+            param_groups.extend(getattr(self, module).parameters())
+        optimizer = get_optimizer(param_groups, self.params.optimizer)
+        if self.params.fp16:
+            optimizer = FP16_Optimizer(optimizer, dynamic_loss_scale=True)
+        return optimizer
+
     def optimize(self, loss, modules):
         """
         Optimize.
         """
-        if type(modules) is str:
-            modules = [modules]
+        assert isinstance(modules, (str, tuple))
 
         # check NaN
         if (loss != loss).data.any():
@@ -125,27 +138,27 @@ class Trainer(object):
             exit()
 
         # zero grad
-        for module in modules:
-            self.optimizers[module].zero_grad()
+        self.optimizers[modules].zero_grad()
 
         # backward
         if self.params.fp16:
-            assert len(modules) == 1, "fp16 not implemented for more than one module"
-            self.optimizers[module].backward(loss)
+            #assert len(modules) == 1, "fp16 not implemented for more than one module"
+            self.optimizers[modules].backward(loss)
         else:
             loss.backward()
 
         # clip gradients
         if self.params.clip_grad_norm > 0:
-            for module in modules:
-                if self.params.fp16:
-                    self.optimizers[module].clip_master_grads(self.params.clip_grad_norm)
-                else:
+            #for module in modules:
+            if self.params.fp16:
+                self.optimizers[modules].clip_master_grads(self.params.clip_grad_norm)
+            else:
+                for module in modules:
                     clip_grad_norm_(getattr(self, module).parameters(), self.params.clip_grad_norm)
 
         # optimization step
-        for module in modules:
-            self.optimizers[module].step()
+        #for module in modules:
+        self.optimizers[modules].step()
 
     def iter(self):
         """
@@ -716,20 +729,20 @@ class EncDecTrainer(Trainer):
 
     def __init__(self, encoder, decoder, data, params):
 
-        self.MODEL_NAMES = ['encoder', 'decoder']
+        self.MODEL_NAMES = [('encoder', 'decoder')]
 
         # model / data / params
         self.encoder = encoder
         self.decoder = decoder
         self.data = data
         self.params = params
-
         # optimizers
-        self.optimizers = {
-            'encoder': self.get_optimizer_fp('encoder'),
-            'decoder': self.get_optimizer_fp('decoder'),
-        }
-
+        #self.optimizers = {
+        #    'encoder': self.get_optimizer_fp('encoder'),
+        #    'decoder': self.get_optimizer_fp('decoder'),
+        #}
+        names = ('encoder', 'decoder')
+        self.optimizers = {names:  self.get_combo_optimizer_fp(names)}
         super().__init__(data, params)
 
     def mask_word(self, w):
@@ -889,7 +902,7 @@ class EncDecTrainer(Trainer):
         loss = lambda_coeff * loss
 
         # optimize
-        self.optimize(loss, ['encoder', 'decoder'])
+        self.optimize(loss, ('encoder', 'decoder'))
 
         # number of processed sentences / words
         self.n_sentences += params.batch_size
@@ -955,7 +968,7 @@ class EncDecTrainer(Trainer):
         self.stats[('BT-%s-%s-%s' % (lang1, lang2, lang3))].append(loss.item())
 
         # optimize
-        self.optimize(loss, ['encoder', 'decoder'])
+        self.optimize(loss, ('encoder', 'decoder'))
 
         # number of processed sentences / words
         self.n_sentences += params.batch_size
@@ -994,7 +1007,7 @@ class EncDecTrainer(Trainer):
         _, loss = self.decoder('predict', tensor=dec2, pred_mask=pred_mask, y=y, get_scores=False)
         self.stats[('MA-%s' % lang)].append(loss.item())
         
-        self.optimize(loss, ['encoder', 'decoder'])
+        self.optimize(loss, ('encoder', 'decoder'))
 
         # number of processed sentences / words
         self.n_sentences += params.batch_size
@@ -1043,7 +1056,7 @@ class EncDecTrainer(Trainer):
         loss = lambda_coeff * loss
 
         # optimize
-        self.optimize(loss, ['encoder', 'decoder'])
+        self.optimize(loss, ('encoder', 'decoder'))
 
         # number of processed sentences / words
         self.n_sentences += params.batch_size
