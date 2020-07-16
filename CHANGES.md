@@ -6,4 +6,5 @@
 1. Runs on CPU too (for development/debugging on laptops that dont have GPUs)
 1. Generalized preprocessing script that can be used with any two languages, just point the local path
 1. Using `sacrebleu` instead of perl script (that actually came without executable permission)
-1.  
+   * Also, sacremoses normalizer and tokenizer instead of moses perl scripts 
+1. make this work on pytorch 1.5 or newer, so we can use newer cuda
