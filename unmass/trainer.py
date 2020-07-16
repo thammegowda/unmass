@@ -475,9 +475,13 @@ class Trainer(object):
         """
         checkpoint_path = os.path.join(self.params.dump_path, 'checkpoint.pth')
         if not os.path.isfile(checkpoint_path):
+            logger.info(f"NOT FOUND: {checkpoint_path}; this must be fresh start")
             return
         logger.warning('Reloading checkpoint from %s ...' % checkpoint_path)
-        data = torch.load(checkpoint_path, map_location=lambda storage, loc: storage.cuda(self.params.local_rank))
+        loc = 'cpu'
+        if torch.cuda.is_available():
+            loc = lambda storage, loc: storage.cuda(self.params.local_rank)
+        data = torch.load(checkpoint_path, map_location=loc)
 
         # reload model parameters and optimizers
         for name in self.MODEL_NAMES:
