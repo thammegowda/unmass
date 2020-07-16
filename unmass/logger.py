@@ -18,7 +18,7 @@ class LogFormatter():
     def format(self, record):
         elapsed_seconds = round(record.created - self.start_time)
 
-        prefix = "%s - %s - %s" % (
+        prefix = "%s %s %s" % (
             record.levelname,
             time.strftime('%x %X'),
             timedelta(seconds=elapsed_seconds)

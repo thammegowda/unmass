@@ -176,9 +176,9 @@ class Trainer(object):
         if self.n_iter % 5 != 0:
             return
 
-        s_iter = "%7i - " % self.n_iter
+        s_iter = "%i - " % self.n_iter
         s_stat = ' || '.join([
-            '{}: {:7.4f}'.format(k, np.mean(v)) for k, v in self.stats.items()
+            '{}: {:.4f}'.format(k, np.mean(v)) for k, v in self.stats.items()
             if type(v) is list and len(v) > 0
         ])
         for k in self.stats.keys():
@@ -187,12 +187,12 @@ class Trainer(object):
 
         # transformer learning rate
         lr = self.optimizers[self.MODEL_NAMES[0]].param_groups[0]['lr']
-        s_lr = " - Transformer LR = {:.4e}".format(lr)
+        s_lr = " - Tfm LR:{:.4e}".format(lr)
 
         # processing speed
         new_time = time.time()
         diff = new_time - self.last_time
-        s_speed = "{:7.2f} sent/s - {:8.2f} words/s - ".format(
+        s_speed = "{:.2f} sent/s {:.2f} words/s - ".format(
             self.stats['processed_s'] * 1.0 / diff,
             self.stats['processed_w'] * 1.0 / diff
         )
