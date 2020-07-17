@@ -29,7 +29,7 @@ def process_binarized(data, params):
             len(dico), len(data['positions']),
             sum(data['unk_words'].values()), len(data['unk_words']),
             100. * sum(data['unk_words'].values()) / (
-                        len(data['sentences']) - len(data['positions']))
+                    len(data['sentences']) - len(data['positions']))
         ))
     if params.max_vocab != -1:
         assert params.max_vocab > 0
@@ -191,7 +191,7 @@ def load_para_data(params, data):
 
             # for back-translation, we can't load training data
             if splt == 'train' and (src, tgt) not in required_para_train and (
-            tgt, src) not in required_para_train:
+                    tgt, src) not in required_para_train:
                 continue
 
             # load binarized datasets
@@ -367,13 +367,13 @@ def check_data_params(params):
                    os.path.join(params.data_path, '%s.%s-%s.%s.pth' % (splt, src, tgt, tgt)))
             for splt in ['train', 'valid']
             if splt != 'train' or (src, tgt) in required_para_train or (
-            tgt, src) in required_para_train
+                tgt, src) in required_para_train
         } for src in params.langs for tgt in params.langs
         if src < tgt and ((src, tgt) in required_para or (tgt, src) in required_para)
     }
-    assert all(
-        [all([os.path.isfile(p1) and os.path.isfile(p2) for p1, p2 in paths.values()]) for paths in
-         params.para_dataset.values()])
+    for paths in params.para_dataset.values():
+        for p1, p2 in paths.values():
+            assert os.path.isfile(p1) and os.path.isfile(p2), f'File not found: {p1} {p2}'
 
     # back parallel datasets
     params.back_dataset = {
