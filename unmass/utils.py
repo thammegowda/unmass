@@ -69,10 +69,8 @@ def initialize_exp(params):
             else:
                 command.append("'%s'" % x)
     command = ' '.join(command)
-    params.command = command + ' --exp_id "%s"' % params.exp_id
+    params.command = command
 
-    # check experiment name
-    assert len(params.exp_name.strip()) > 0
 
     # create a logger
     logger = create_logger(os.path.join(params.dump_path, 'train.log'), rank=getattr(params, 'global_rank', 0))
@@ -89,34 +87,7 @@ def get_dump_path(params):
     """
     Create a directory to store the experiment.
     """
-    dump_path = DUMP_PATH if params.dump_path == '' else params.dump_path
-    assert len(params.exp_name) > 0
-
-    # create the sweep path if it does not exist
-    sweep_path = os.path.join(dump_path, params.exp_name)
-    if not os.path.exists(sweep_path):
-        subprocess.Popen("mkdir -p %s" % sweep_path, shell=True).wait()
-
-    # create an ID for the job if it is not given in the parameters.
-    # if we run on the cluster, the job ID is the one of Chronos.
-    # otherwise, it is randomly generated
-    if params.exp_id == '':
-        chronos_job_id = os.environ.get('CHRONOS_JOB_ID')
-        slurm_job_id = os.environ.get('SLURM_JOB_ID')
-        assert chronos_job_id is None or slurm_job_id is None
-        exp_id = chronos_job_id if chronos_job_id is not None else slurm_job_id
-        if exp_id is None:
-            chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
-            while True:
-                exp_id = ''.join(random.choice(chars) for _ in range(10))
-                if not os.path.isdir(os.path.join(sweep_path, exp_id)):
-                    break
-        else:
-            assert exp_id.isdigit()
-        params.exp_id = exp_id
-
     # create the dump folder / update parameters
-    params.dump_path = os.path.join(sweep_path, params.exp_id)
     if not os.path.isdir(params.dump_path):
         subprocess.Popen("mkdir -p %s" % params.dump_path, shell=True).wait()
 

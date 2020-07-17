@@ -33,14 +33,10 @@ def get_parser():
     parser = argparse.ArgumentParser(description="Language transfer")
 
     # main parameters
-    parser.add_argument("--dump_path", type=str, default="./dumped/",
-                        help="Experiment dump path")
-    parser.add_argument("--exp_name", type=str, default="", required=True,
-                        help="Experiment name")
+    parser.add_argument("--exp_path", dest='dump_path', type=str, required=True,
+                        help="Experiment dump path where the checkpoint and logs are stored")
     parser.add_argument("--save_periodic", type=int, default=0,
                         help="Save the model periodically (0 to disable)")
-    parser.add_argument("--exp_id", type=str, default="", required=True,
-                        help="Experiment ID")
 
     # float16
     parser.add_argument("--fp16", type=bool_flag, default=False,
