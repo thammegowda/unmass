@@ -74,6 +74,17 @@ def get_parser():
     return parser
 
 
+def unwrap(state):
+
+    if all(key.startswith('module.') for key in state):
+        logger.info("unwrapping module")
+        off = len("module.")
+        state = {key[off:]: val for key, val in state.items()}
+
+    return state
+
+
+
 def main(params):
     # generate parser / parse parameters
     parser = get_parser()
@@ -92,8 +103,8 @@ def main(params):
     decoder = TransformerModel(model_params, dico, is_encoder=False, with_output=True)
     encoder = encoder.to(device).eval()
     decoder = decoder.to(device).eval()
-    encoder.load_state_dict(reloaded['encoder'])
-    decoder.load_state_dict(reloaded['decoder'])
+    encoder.load_state_dict(unwrap(reloaded['encoder']))
+    decoder.load_state_dict(unwrap(reloaded['decoder']))
     params.src_id = model_params.lang2id[params.src_lang]
     params.tgt_id = model_params.lang2id[params.tgt_lang]
 
