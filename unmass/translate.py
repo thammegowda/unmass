@@ -38,6 +38,9 @@ if torch.cuda.is_available():
     device = torch.device('cuda')
 
 
+stdin = io.TextIOWrapper(sys.stdin.buffer, encoding='utf-8', errors='ignore')
+stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='ignore')
+    
 def get_parser():
     """
     Generate a parameters parser.
@@ -45,8 +48,7 @@ def get_parser():
     # parse parameters
 
     parser = argparse.ArgumentParser(description="Translate sentences")
-    stdin = io.TextIOWrapper(sys.stdin.buffer, encoding='utf-8', errors='ignore')
-    stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='ignore')
+
     # main parameters
     parser.add_argument("--fp16", type=bool_flag, default=False, help="Run model with float16")
     parser.add_argument("-bs", "--batch_size", type=int, default=32,
@@ -180,6 +182,7 @@ def cli():
     # translate
     with torch.no_grad():
         main(params)
+    stdout.close()
 
 
 if __name__ == '__main__':
