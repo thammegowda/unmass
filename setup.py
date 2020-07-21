@@ -43,6 +43,7 @@ setuptools.setup(
     entry_points={
         'console_scripts': [
             'unmass-train=unmass.train:cli',
+            'unmass-translate=unmass.translate:cli',
         ],
     }
 )
