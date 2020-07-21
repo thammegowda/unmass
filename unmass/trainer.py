@@ -428,10 +428,10 @@ class Trainer(object):
         logger.info('Saving models to %s ...' % path)
         data = {}
         for name in self.MODEL_NAMES:
+            model = getattr(self, name)
             if self.params.multi_gpu:
-                data[name] = getattr(self, name).module.state_dict()
-            else:
-                data[name] = getattr(self, name).state_dict()
+               model = model.module
+            data[name] = model.state_dict()
 
         data['dico_id2word'] = self.data['dico'].id2word
         data['dico_word2id'] = self.data['dico'].word2id
@@ -455,7 +455,11 @@ class Trainer(object):
         }
 
         for name in self.MODEL_NAMES:
-            data[name] = getattr(self, name).state_dict()
+            model = getattr(self, name)
+            if self.params.multi_gpu:
+                model = model.module
+            data[name] = model.state_dict()
+
         data['optimizers'] = {}
         for name, optim in self.optimizers.items():
             data['optimizers'][name] = optim.state_dict()
