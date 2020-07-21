@@ -20,13 +20,22 @@ import io
 import sys
 import argparse
 import torch
+import io
 
 from unmass.utils import AttrDict
-from unmass.utils import bool_flag, initialize_exp
+from unmass.utils import bool_flag
 from unmass.data.dictionary import Dictionary
 from unmass.model.transformer import TransformerModel
 
+import logging as logger
+
 from unmass.fp16 import network_to_half
+
+logger.basicConfig(level=logger.INFO)
+
+device = torch.device('cpu')
+if torch.cuda.is_available():
+    device = torch.device('cuda')
 
 
 def get_parser():
@@ -34,41 +43,42 @@ def get_parser():
     Generate a parameters parser.
     """
     # parse parameters
-    parser = argparse.ArgumentParser(description="Translate sentences")
 
+    parser = argparse.ArgumentParser(description="Translate sentences")
+    stdin = io.TextIOWrapper(sys.stdin.buffer, encoding='utf-8', errors='ignore')
+    stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='ignore')
     # main parameters
-    parser.add_argument("--dump_path", type=str, default="./dumped/", help="Experiment dump path")
-    parser.add_argument("--exp_name", type=str, default="", help="Experiment name")
-    parser.add_argument("--exp_id", type=str, default="", help="Experiment ID")
     parser.add_argument("--fp16", type=bool_flag, default=False, help="Run model with float16")
-    parser.add_argument("--batch_size", type=int, default=32, help="Number of sentences per batch")
+    parser.add_argument("-bs", "--batch_size", type=int, default=32,
+                        help="Number of sentences per batch")
 
     # model / output paths
-    parser.add_argument("--model_path", type=str, default="", help="Model path")
-    parser.add_argument("--output_path", type=str, default="", help="Output path")
-    
-    parser.add_argument("--beam", type=int, default=1, help="Beam size")
-    parser.add_argument("--length_penalty", type=float, default=1, help="length penalty")
+    parser.add_argument("-m", "--model", type=str, required=True, help="Model path")
+    parser.add_argument("-i", "--input", default=stdin,
+                        type=argparse.FileType('r', encoding='utf-8', errors='ignore'),
+                        help="Input path. Default: STDIN")
+    parser.add_argument("-o", "--output", default=stdout,
+                        type=argparse.FileType('w', encoding='utf-8', errors='ignore'),
+                        help="Output path: Default: STDOUT")
+
+    parser.add_argument("-bm", "--beam", type=int, default=1, help="Beam size")
+    parser.add_argument("-lp", "--length_penalty", type=float, default=1, help="length penalty")
 
     # parser.add_argument("--max_vocab", type=int, default=-1, help="Maximum vocabulary size (-1 to disable)")
     # parser.add_argument("--min_count", type=int, default=0, help="Minimum vocabulary count")
 
     # source language / target language
-    parser.add_argument("--src_lang", type=str, default="", help="Source language")
-    parser.add_argument("--tgt_lang", type=str, default="", help="Target language")
+    parser.add_argument("-sl", "--src_lang", type=str, required=True, help="Source language")
+    parser.add_argument("-tl", "--tgt_lang", type=str, required=True, help="Target language")
 
     return parser
 
 
 def main(params):
-
-    # initialize the experiment
-    logger = initialize_exp(params)
-
     # generate parser / parse parameters
     parser = get_parser()
     params = parser.parse_args()
-    reloaded = torch.load(params.model_path)
+    reloaded = torch.load(params.model, map_location=device)
     model_params = AttrDict(reloaded['params'])
     logger.info("Supported languages: %s" % ", ".join(model_params.lang2id.keys()))
 
@@ -78,8 +88,10 @@ def main(params):
 
     # build dictionary / build encoder / build decoder / reload weights
     dico = Dictionary(reloaded['dico_id2word'], reloaded['dico_word2id'], reloaded['dico_counts'])
-    encoder = TransformerModel(model_params, dico, is_encoder=True, with_output=True).cuda().eval()
-    decoder = TransformerModel(model_params, dico, is_encoder=False, with_output=True).cuda().eval()
+    encoder = TransformerModel(model_params, dico, is_encoder=True, with_output=True)
+    decoder = TransformerModel(model_params, dico, is_encoder=False, with_output=True)
+    encoder = encoder.to(device).eval()
+    decoder = decoder.to(device).eval()
     encoder.load_state_dict(reloaded['encoder'])
     decoder.load_state_dict(reloaded['decoder'])
     params.src_id = model_params.lang2id[params.src_lang]
@@ -93,12 +105,13 @@ def main(params):
 
     # read sentences from stdin
     src_sent = []
-    for line in sys.stdin.readlines():
-        assert len(line.strip().split()) > 0
+    for i, line in enumerate(params.input):
+        line = line.strip()
+        assert line, f'Found an empty line at line number: {i}. Please remove it.'
         src_sent.append(line)
-    logger.info("Read %i sentences from stdin. Translating ..." % len(src_sent))
+    logger.info(f"Read {len(src_sent)} sentences from input. Translating ...")
 
-    f = io.open(params.output_path, 'w', encoding='utf-8')
+    out = params.output
 
     for i in range(0, len(src_sent), params.batch_size):
 
@@ -112,23 +125,25 @@ def main(params):
             if lengths[j] > 2:  # if sentence not empty
                 batch[1:lengths[j] - 1, j].copy_(s)
             batch[lengths[j] - 1, j] = params.eos_index
-        langs = batch.clone().fill_(params.src_id)
-
+        langs = batch.clone().fill_(params.src_id).to(device)
+        batch = batch.to(device)
+        lengths = lengths.to(device)
         # encode source batch and translate it
-        encoded = encoder('fwd', x=batch.cuda(), lengths=lengths.cuda(), langs=langs.cuda(), causal=False)
+        encoded = encoder('fwd', x=batch, lengths=lengths, langs=langs,
+                          causal=False)
         encoded = encoded.transpose(0, 1)
         if params.beam == 1:
-            decoded, dec_lengths = decoder.generate(encoded, lengths.cuda(), params.tgt_id, max_len=int(1.5 * lengths.max().item() + 10))
+            decoded, dec_lengths = decoder.generate(encoded, lengths, params.tgt_id,
+                                                    max_len=int(1.5 * lengths.max().item() + 10))
         else:
             decoded, dec_lengths = decoder.generate_beam(
-                encoded, lengths.cuda(), params.tgt_id, beam_size=params.beam,
+                encoded, lengths, params.tgt_id, beam_size=params.beam,
                 length_penalty=params.length_penalty,
                 early_stopping=False,
                 max_len=int(1.5 * lengths.max().item() + 10))
 
         # convert sentences to words
         for j in range(decoded.size(1)):
-
             # remove delimiters
             sent = decoded[:, j]
             delimiters = (sent == params.eos_index).nonzero().view(-1)
@@ -138,23 +153,23 @@ def main(params):
             # output translation
             source = src_sent[i + j].strip()
             target = " ".join([dico[sent[k].item()] for k in range(len(sent))])
-            sys.stderr.write("%i / %i: %s -> %s\n" % (i + j, len(src_sent), source, target))
-            f.write(target + "\n")
-
-    f.close()
+            logger.info("%i / %i: %s -> %s" % (i + j, len(src_sent), source, target))
+            out.write(target + "\n")
 
 
-if __name__ == '__main__':
-
+def cli():
     # generate parser / parse parameters
     parser = get_parser()
     params = parser.parse_args()
 
     # check parameters
-    assert os.path.isfile(params.model_path)
+    assert os.path.isfile(params.model)
     assert params.src_lang != '' and params.tgt_lang != '' and params.src_lang != params.tgt_lang
-    assert params.output_path and not os.path.isfile(params.output_path)
 
     # translate
     with torch.no_grad():
         main(params)
+
+
+if __name__ == '__main__':
+    cli()
