@@ -61,7 +61,7 @@ def get_parser():
                         type=argparse.FileType('w', encoding='utf-8', errors='ignore'),
                         help="Output path: Default: STDOUT")
 
-    parser.add_argument("-bm", "--beam", type=int, default=1, help="Beam size")
+    parser.add_argument("-bm", "--beam", type=int, default=0.6, help="Beam size")
     parser.add_argument("-lp", "--length_penalty", type=float, default=1, help="length penalty")
 
     # parser.add_argument("--max_vocab", type=int, default=-1, help="Maximum vocabulary size (-1 to disable)")
@@ -84,11 +84,10 @@ def unwrap(state):
     return state
 
 
-
-def main(params):
+def main(params=None):
     # generate parser / parse parameters
     parser = get_parser()
-    params = parser.parse_args()
+    params = params or parser.parse_args()
     reloaded = torch.load(params.model, map_location=device)
     model_params = AttrDict(reloaded['params'])
     logger.info("Supported languages: %s" % ", ".join(model_params.lang2id.keys()))
