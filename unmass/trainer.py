@@ -473,6 +473,19 @@ class Trainer(object):
         logger.info("Saving checkpoint to %s ..." % checkpoint_path)
         torch.save(data, checkpoint_path)
 
+    @classmethod
+    def load_state(cls, module, state):
+        try:
+            module.load_state_dict(state)
+        except:
+            if all(k.startswith("module.") for k in state):
+                logger.info("unwrapping the module")
+                off = len("module.")
+                state = {key[off:]: val for key, val in state.items()}
+                module.load_state_dict(state)
+            else:
+                raise
+
     def reload_checkpoint(self):
         """
         Reload a checkpoint if we find one.
@@ -489,7 +502,7 @@ class Trainer(object):
 
         # reload model parameters and optimizers
         for name in self.MODEL_NAMES:
-            getattr(self, name).load_state_dict(data[name])
+            self.load_state(getattr(self, name), data[name])
         for name, state in data['optimizers'].items():
             self.optimizers[name].load_state_dict(state)
 
