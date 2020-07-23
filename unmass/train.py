@@ -41,6 +41,8 @@ def get_parser():
     # float16
     parser.add_argument("--fp16", type=bool_flag, default=False,
                         help="Run model with float16")
+    parser.add_argument("--accumulate_gradients", type=int, default=1,
+                        help="accumulate gradients upto __ intervals for each optimizer step")
 
     # only use an encoder (use a specific decoder for machine translation)
     parser.add_argument("--encoder_only", type=bool_flag, default=True,
@@ -245,7 +247,7 @@ def main(params):
         else:
             encoder = network_to_half(encoder)
             decoder = network_to_half(decoder)
-
+    assert params.accumulate_gradients > 0
     # distributed
     if params.multi_gpu:
         logger.info("Using nn.parallel.DistributedDataParallel ...")

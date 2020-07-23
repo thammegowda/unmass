@@ -142,7 +142,6 @@ class Trainer(object):
 
         # backward
         if self.params.fp16:
-            #assert len(modules) == 1, "fp16 not implemented for more than one module"
             self.optimizers[name].backward(loss)
         else:
             loss.backward()
@@ -156,9 +155,8 @@ class Trainer(object):
                 for module in modules:
                     clip_grad_norm_(getattr(self, module).parameters(), self.params.clip_grad_norm)
 
-        # optimization step
-        #for module in modules:
-        self.optimizers[name].step()
+        if self.n_iter % self.params.accumulate_gradients == 0:
+            self.optimizers[name].step()
 
     def iter(self):
         """
@@ -173,10 +171,11 @@ class Trainer(object):
         """
         Print statistics about the training.
         """
-        if self.n_iter % 5 != 0:
+        n_iter = self.n_iter / self.params.accumulate_gradients
+        if n_iter % 5 != 0:
             return
 
-        s_iter = "%i - " % self.n_iter
+        s_iter = "%i - " % n_iter
         s_stat = ' || '.join([
             '{}: {:.4f}'.format(k, np.mean(v)) for k, v in self.stats.items()
             if type(v) is list and len(v) > 0
