@@ -472,9 +472,10 @@ class Trainer(object):
         logger.info("Saving checkpoint to %s ..." % checkpoint_path)
         torch.save(data, checkpoint_path)
 
-    @classmethod
-    def load_state(cls, module, state):
+    def load_state(self, module, state):
         try:
+            if self.params.multi_gpu:
+                module = module.module
             module.load_state_dict(state)
         except:
             if all(k.startswith("module.") for k in state):
