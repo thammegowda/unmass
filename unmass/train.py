@@ -21,7 +21,6 @@ from unmass.model import check_model_params, build_model
 from unmass.trainer import SingleTrainer, EncDecTrainer
 from unmass.evaluation.evaluator import SingleEvaluator, EncDecEvaluator
 
-import apex
 from unmass.fp16 import network_to_half
 
 
@@ -251,11 +250,15 @@ def main(params):
     # distributed
     if params.multi_gpu:
         logger.info("Using nn.parallel.DistributedDataParallel ...")
+        from torch.nn.parallel import DistributedDataParallel as DDP
         if params.encoder_only:
-            model = apex.parallel.DistributedDataParallel(model, delay_allreduce=True)
+            #model = apex.parallel.DistributedDataParallel(model, delay_allreduce=True)
+            model = DDP(model)
         else:
-            encoder = apex.parallel.DistributedDataParallel(encoder, delay_allreduce=True)
-            decoder = apex.parallel.DistributedDataParallel(decoder, delay_allreduce=True)
+            #encoder = apex.parallel.DistributedDataParallel(encoder, delay_allreduce=True)
+            #decoder = apex.parallel.DistributedDataParallel(decoder, delay_allreduce=True)
+            encoder = DDP(encoder)
+            decoder = DDP(decoder)
 
     # build trainer, reload potential checkpoints / build evaluator
     if params.encoder_only:
