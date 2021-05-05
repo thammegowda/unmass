@@ -218,16 +218,7 @@ fi
 echo "$SRC monolingual data tokenized in: $SRC_TOK"
 echo "$TGT monolingual data tokenized in: $TGT_TOK"
 
-if [[ -n $PARA_TRAIN_PREF ]]; then
-  if [[ ! -f $PARA_SRC_TRAIN_TOK ]]; then
-    echo "Normalizing and Tokenizing $PARA_SRC_TRAIN_ORIG --> $PARA_SRC_TRAIN_TOK"
-     eval "cat $PARA_SRC_TRAIN_ORIG | $SRC_PREPROCESSING > $PARA_SRC_TRAIN_TOK"
-  fi
-  if [[ ! -f $PARA_TGT_TRAIN_TOK ]]; then
-    echo "Normalizing and Tokenizing $PARA_TGT_TRAIN_ORIG --> $PARA_TGT_TRAIN_TOK"
-     eval "cat $PARA_TGT_TRAIN_ORIG | $TGT_PREPROCESSING > $PARA_TGT_TRAIN_TOK"
-  fi
-fi
+
 
 # reload BPE codes
 #cd $MAIN_PATH
@@ -264,12 +255,6 @@ if ! [[ -f "$TGT_TRAIN_BPE" ]]; then
 fi
 echo "BPE codes applied to $TGT in: $TGT_TRAIN_BPE"
 
-if ! [[ -f $PARA_SRC_TRAIN_BPE ]]; then
-  $FASTBPE applybpe $PARA_SRC_TRAIN_BPE $PARA_SRC_TRAIN_TOK $BPE_CODES
-fi
-if ! [[ -f $PARA_TGT_TRAIN_BPE ]]; then
-  $FASTBPE applybpe $PARA_TGT_TRAIN_BPE $PARA_TGT_TRAIN_TOK $BPE_CODES
-fi
 
 # extract source and target vocabulary
 if ! [[ -f "$SRC_VOCAB" && -f "$TGT_VOCAB" ]]; then
@@ -307,13 +292,22 @@ echo "$SRC binarized data in: $SRC_TRAIN_BPE.pth"
 echo "$TGT binarized data in: $TGT_TRAIN_BPE.pth"
 
 if [[ -n $PARA_TRAIN_PREF ]]; then
+  if [[ ! -f $PARA_SRC_TRAIN_TOK ]]; then
+    echo "Normalizing and Tokenizing $PARA_SRC_TRAIN_ORIG --> $PARA_SRC_TRAIN_TOK"
+     eval "cat $PARA_SRC_TRAIN_ORIG | $SRC_PREPROCESSING > $PARA_SRC_TRAIN_TOK"
+  fi
+  if [[ ! -f $PARA_TGT_TRAIN_TOK ]]; then
+    echo "Normalizing and Tokenizing $PARA_TGT_TRAIN_ORIG --> $PARA_TGT_TRAIN_TOK"
+     eval "cat $PARA_TGT_TRAIN_ORIG | $TGT_PREPROCESSING > $PARA_TGT_TRAIN_TOK"
+  fi
+
+  [[ -f $PARA_SRC_TRAIN_BPE ]] ||  $FASTBPE applybpe $PARA_SRC_TRAIN_BPE $PARA_SRC_TRAIN_TOK $BPE_CODES
+  [[ -f $PARA_TGT_TRAIN_BPE ]] ||  $FASTBPE applybpe $PARA_TGT_TRAIN_BPE $PARA_TGT_TRAIN_TOK $BPE_CODES
+    
   [[ -f "$PARA_SRC_TRAIN_BPE.pth" ]] || $PREPROCESS $FULL_VOCAB $PARA_SRC_TRAIN_BPE
   [[ -f "$PARA_TGT_TRAIN_BPE.pth" ]] || $PREPROCESS $FULL_VOCAB $PARA_TGT_TRAIN_BPE
 fi
-#
-# Download parallel data (for evaluation only)
-#
-#cd $PARA_PATH
+
 
 echo "Tokenizing validation data..."
 eval "cat $PARA_SRC_VALID_ORIG | $SRC_PREPROCESSING > $PARA_SRC_VALID"

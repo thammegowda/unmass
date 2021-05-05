@@ -151,11 +151,11 @@ class Trainer(object):
         # clip gradients
         if self.params.clip_grad_norm > 0:
             #for module in modules:
-            if self.params.fp16:
-                self.optimizers[name].clip_master_grads(self.params.clip_grad_norm)
-            else:
-                for module in modules:
-                    clip_grad_norm_(getattr(self, module).parameters(), self.params.clip_grad_norm)
+            #if self.params.fp16:
+            #    self.optimizers[name].clip_master_grads(self.params.clip_grad_norm)
+            #else:
+            for module in modules:
+                clip_grad_norm_(getattr(self, module).parameters(), self.params.clip_grad_norm)
 
         if self.n_iter % self.params.accumulate_gradients == 0:
             if self.params.fp16:

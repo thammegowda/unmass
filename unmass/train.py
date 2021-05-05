@@ -21,7 +21,7 @@ from unmass.model import check_model_params, build_model
 from unmass.trainer import SingleTrainer, EncDecTrainer
 from unmass.evaluation.evaluator import SingleEvaluator, EncDecEvaluator
 
-from unmass.fp16 import network_to_half
+#from unmass.fp16 import network_to_half
 
 
 def get_parser():
@@ -239,6 +239,7 @@ def main(params):
         encoder, decoder = build_model(params, data['dico'])
 
     # float16
+    """
     if params.fp16:
         assert torch.backends.cudnn.enabled
         if params.encoder_only:
@@ -246,6 +247,7 @@ def main(params):
         else:
             encoder = network_to_half(encoder)
             decoder = network_to_half(decoder)
+    """
     assert params.accumulate_gradients > 0
     # distributed
     if params.multi_gpu:
