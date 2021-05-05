@@ -35,8 +35,8 @@ setuptools.setup(
         'ruamel.yaml >= 0.16.10',
         'sacrebleu >= 1.4.6',
         'sacremoses >= 0.0.43',
-        'nlcodec >= 0.2.3',
-        'torch >= 1.4'
+        'nlcodec >= 0.3.2',
+        'torch >= 1.8'
     ],
     python_requires='>=3.7',
     scripts=['scripts/unmass-prep'],

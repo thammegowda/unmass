@@ -29,6 +29,8 @@ TOOLS_PATH=$PWD/tools
 DATA_PATH=
 MONO_PREF=
 PARA_VAL_PREF=
+PARA_TRAIN_PREF=
+
 POSITIONAL=()
 while [[ $# -gt 0 ]]; do
   key="$1"
@@ -43,6 +45,8 @@ while [[ $# -gt 0 ]]; do
       N_MONO="$2"; shift 2;;
     --para_val)
       PARA_VAL_PREF="$2"; shift 2;;
+    --para_train)
+      PARA_TRAIN_PREF="$2"; shift 2;;
     --data)
       DATA_PATH="$2"; shift 2;;
     --tools)
@@ -90,16 +94,27 @@ TGT_ORIG=$MONO_PREF.$TGT
 PARA_SRC_VALID_ORIG=$PARA_VAL_PREF.$SRC
 PARA_TGT_VALID_ORIG=$PARA_VAL_PREF.$TGT
 
+PARA_SRC_TRAIN_ORIG=$PARA_TRAIN_PREF.$SRC
+PARA_TGT_TRAIN_ORIG=$PARA_TRAIN_PREF.$TGT
+
+
 [[ -f $SRC_ORIG ]] || { echo "SRC_ORIG $SRC_ORIG not found"; exit 2; }
 [[ -f $TGT_ORIG ]] || { echo "TGT_ORIG $TGT_ORIG not found"; exit 2; }
 
-for var in {SRC,TGT}_ORIG  PARA_{SRC,TGT}_VALID_ORIG; do
+for var in {SRC,TGT}_ORIG PARA_{SRC,TGT}_VALID_ORIG; do
     eval "path=\$$var"
     if [[ ! -f "$path" ]]; then
 	    echo "$var $path not found"
 	    exit 3;
     fi
 done
+
+if [[ -n $PARA_TRAIN_PREF ]]; then
+  [[ -f $PARA_SRC_TRAIN_ORIG  && -f $PARA_TGT_TRAIN_ORIG  ]] || {
+    echo "--para_train should have both $SRC and $TGT."
+    exit 3
+  }
+fi
 
 
 MONO_PATH=$DATA_PATH/mono
@@ -136,6 +151,10 @@ TGT_RAW=$MONO_PATH/$TGT/all.$TGT
 SRC_TOK=$SRC_RAW.tok
 TGT_TOK=$TGT_RAW.tok
 
+PARA_SRC_TRAIN_TOK=$PARA_PATH/train.$SRC-$TGT.$SRC.tok
+PARA_TGT_TRAIN_TOK=$PARA_PATH/train.$SRC-$TGT.$TGT.tok
+
+
 # BPE / vocab files
 BPE_CODES=$PROC_PATH/codes
 SRC_VOCAB=$PROC_PATH/vocab.$SRC
@@ -155,7 +174,8 @@ PARA_TGT_VALID=$PARA_PATH/dev/dev.$TGT
 # valid / parallel BPE data
 PARA_SRC_VALID_BPE=$PROC_PATH/valid.$SRC-$TGT.$SRC
 PARA_TGT_VALID_BPE=$PROC_PATH/valid.$SRC-$TGT.$TGT
-
+PARA_SRC_TRAIN_BPE=$PROC_PATH/train.$SRC-$TGT.$SRC
+PARA_TGT_TRAIN_BPE=$PROC_PATH/train.$SRC-$TGT.$TGT
 
 
 mkdir -p $MONO_PATH/$SRC  $MONO_PATH/$TGT $PARA_PATH/dev #$PARA_PATH/test
@@ -165,10 +185,18 @@ mkdir -p $MONO_PATH/$SRC  $MONO_PATH/$TGT $PARA_PATH/dev #$PARA_PATH/test
 if ! [[ -f "$SRC_RAW" ]]; then
   echo " $SRC monolingual data..."
   cat $SRC_ORIG | shuf | head -n $N_MONO > $SRC_RAW
+  if [[ -n $PARA_TRAIN_PREF ]]; then  # if parallel data is specified, use it
+    echo "Including parallel training source into monolingual source"
+    cat $PARA_SRC_TRAIN_ORIG | shuf  >> $SRC_RAW
+  fi
 fi
 if ! [[ -f "$TGT_RAW" ]]; then
   echo " $TGT monolingual data..."
   cat $TGT_ORIG | shuf | head -n $N_MONO > $TGT_RAW
+  if [[ -n $PARA_TRAIN_PREF ]]; then  # if parallel data is specified, use it
+    echo "Including parallel training target into monolingual target"
+    cat $PARA_TGT_TRAIN_ORIG | shuf  >> $TGT_RAW
+  fi
 fi
 echo "$SRC selected monolingual data in: $SRC_RAW"
 echo "$TGT selected monolingual data in: $TGT_RAW"
@@ -184,11 +212,13 @@ if ! [[ -f "$SRC_TOK" ]]; then
 fi
 
 if ! [[ -f "$TGT_TOK" ]]; then
-  echo "Tokenize $TGT monolingual data..."
+  echo "Normalize and Tokenize $TGT monolingual data..."
   eval "cat $TGT_RAW | $TGT_PREPROCESSING > $TGT_TOK"
 fi
 echo "$SRC monolingual data tokenized in: $SRC_TOK"
 echo "$TGT monolingual data tokenized in: $TGT_TOK"
+
+
 
 # reload BPE codes
 #cd $MAIN_PATH
@@ -202,11 +232,12 @@ if [ ! -f "$BPE_CODES" ]; then
   echo "Learning BPE codes using fastBPE..."
   $FASTBPE learnbpe $CODES $SRC_TOK $TGT_TOK > $BPE_CODES
   # Step 1 extract term freqs
-  #export SPARK_MASTER="local[${N_THREADS}]"
-  #export SPARK_DRIVER_MEM="8g"
+  export SPARK_MASTER="local[${N_THREADS}]"
+  export SPARK_DRIVER_MEM="8g"
+
   #python -m nlcodec.term_freq -i $SRC_TOK $TGT_TOK --no-dedup -cf $PROC_PATH/charfreqs.tsv -wf $PROC_PATH/wordfreqs.tsv
   # step 2 learn from term freqs.  -tfs indicates input is term freqs
-  #nlcodec learn -l bpe -vs $CODES -cv $CHAR_COVERAGE -m ${BPE_CODES} -tfs -i $PROC_PATH/wordfreqs.tsv
+  #nlcodec-learn -l bpe -vs $CODES -cv $CHAR_COVERAGE -m ${BPE_CODES} --dedup --inp $SRC_TOK $TGT_TOK
 fi
 echo "BPE learned in $BPE_CODES"
 
@@ -216,13 +247,14 @@ if ! [[ -f "$SRC_TRAIN_BPE" ]]; then
   $FASTBPE applybpe $SRC_TRAIN_BPE $SRC_TOK $BPE_CODES
   #nlcodec encode -m $BPE_CODES -i $SRC_TOK  -o $SRC_TRAIN_BPE
 fi
+echo "BPE codes applied to $SRC in: $SRC_TRAIN_BPE"
 if ! [[ -f "$TGT_TRAIN_BPE" ]]; then
   echo "Applying $TGT BPE codes..."
   $FASTBPE applybpe $TGT_TRAIN_BPE $TGT_TOK $BPE_CODES
   #nlcodec encode -m $BPE_CODES -i $TGT_TOK  -o $TGT_TRAIN_BPE
 fi
-echo "BPE codes applied to $SRC in: $SRC_TRAIN_BPE"
 echo "BPE codes applied to $TGT in: $TGT_TRAIN_BPE"
+
 
 # extract source and target vocabulary
 if ! [[ -f "$SRC_VOCAB" && -f "$TGT_VOCAB" ]]; then
@@ -259,10 +291,23 @@ fi
 echo "$SRC binarized data in: $SRC_TRAIN_BPE.pth"
 echo "$TGT binarized data in: $TGT_TRAIN_BPE.pth"
 
-#
-# Download parallel data (for evaluation only)
-#
-#cd $PARA_PATH
+if [[ -n $PARA_TRAIN_PREF ]]; then
+  if [[ ! -f $PARA_SRC_TRAIN_TOK ]]; then
+    echo "Normalizing and Tokenizing $PARA_SRC_TRAIN_ORIG --> $PARA_SRC_TRAIN_TOK"
+     eval "cat $PARA_SRC_TRAIN_ORIG | $SRC_PREPROCESSING > $PARA_SRC_TRAIN_TOK"
+  fi
+  if [[ ! -f $PARA_TGT_TRAIN_TOK ]]; then
+    echo "Normalizing and Tokenizing $PARA_TGT_TRAIN_ORIG --> $PARA_TGT_TRAIN_TOK"
+     eval "cat $PARA_TGT_TRAIN_ORIG | $TGT_PREPROCESSING > $PARA_TGT_TRAIN_TOK"
+  fi
+
+  [[ -f $PARA_SRC_TRAIN_BPE ]] ||  $FASTBPE applybpe $PARA_SRC_TRAIN_BPE $PARA_SRC_TRAIN_TOK $BPE_CODES
+  [[ -f $PARA_TGT_TRAIN_BPE ]] ||  $FASTBPE applybpe $PARA_TGT_TRAIN_BPE $PARA_TGT_TRAIN_TOK $BPE_CODES
+    
+  [[ -f "$PARA_SRC_TRAIN_BPE.pth" ]] || $PREPROCESS $FULL_VOCAB $PARA_SRC_TRAIN_BPE
+  [[ -f "$PARA_TGT_TRAIN_BPE.pth" ]] || $PREPROCESS $FULL_VOCAB $PARA_TGT_TRAIN_BPE
+fi
+
 
 echo "Tokenizing validation data..."
 eval "cat $PARA_SRC_VALID_ORIG | $SRC_PREPROCESSING > $PARA_SRC_VALID"
@@ -276,7 +321,7 @@ $FASTBPE applybpe $PARA_TGT_VALID_BPE $PARA_TGT_VALID $BPE_CODES $TGT_VOCAB
 #nlcodec encode -m $BPE_CODES -i $PARA_TGT_VALID -o $PARA_TGT_VALID_BPE
 
 echo "Binarizing data..."
-rm -f $PARA_SRC_VALID_BPE.pth $PARA_TGT_VALID_BPE.pth $PARA_SRC_TEST_BPE.pth $PARA_TGT_TEST_BPE.pth
+rm -f $PARA_SRC_VALID_BPE.pth $PARA_TGT_VALID_BPE.pth
 $PREPROCESS $FULL_VOCAB $PARA_SRC_VALID_BPE
 $PREPROCESS $FULL_VOCAB $PARA_TGT_VALID_BPE
 
@@ -297,6 +342,11 @@ echo "    $TGT: $TGT_TRAIN_BPE.pth"
 echo "Monolingual validation data:"
 echo "    $SRC: $SRC_VALID_BPE.pth"
 echo "    $TGT: $TGT_VALID_BPE.pth"
+if [[ -n $PARA_TRAIN_PREF ]]; then
+  echo "Parallel training data:"
+  echo "    $SRC: $PARA_SRC_TRAIN_BPE.pth"
+  echo "    $TGT: $PARA_TGT_TRAIN_BPE.pth"
+fi
 echo "Parallel validation data:"
 echo "    $SRC: $PARA_SRC_VALID_BPE.pth"
 echo "    $TGT: $PARA_TGT_VALID_BPE.pth"

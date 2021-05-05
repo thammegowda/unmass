@@ -18,7 +18,8 @@ import numpy as np
 import torch
 from torch.nn import functional as F
 from torch.nn.utils import clip_grad_norm_
-from apex.fp16_utils import FP16_Optimizer
+#from apex.fp16_utils import FP16_Optimizer
+scaler = torch.cuda.amp.GradScaler()
 
 from .utils import get_optimizer, to_cuda, concat_batches
 from .utils import parse_lambda_config, update_lambdas
@@ -108,8 +109,8 @@ class Trainer(object):
         """
         assert module in ['model', 'encoder', 'decoder']
         optimizer = get_optimizer(getattr(self, module).parameters(), self.params.optimizer)
-        if self.params.fp16:
-            optimizer = FP16_Optimizer(optimizer, dynamic_loss_scale=True)
+        #if self.params.fp16:
+        #    optimizer = FP16_Optimizer(optimizer, dynamic_loss_scale=True)
         return optimizer
 
     def get_combo_optimizer_fp(self, modules):
@@ -122,8 +123,8 @@ class Trainer(object):
             assert hasattr(self, module)
             param_groups.extend(getattr(self, module).parameters())
         optimizer = get_optimizer(param_groups, self.params.optimizer)
-        if self.params.fp16:
-            optimizer = FP16_Optimizer(optimizer, dynamic_loss_scale=True)
+        #if self.params.fp16:
+        #    optimizer = FP16_Optimizer(optimizer, dynamic_loss_scale=True)
         return optimizer
 
     def optimize(self, loss, modules):
@@ -138,25 +139,33 @@ class Trainer(object):
             exit()
 
         # zero grad
-        self.optimizers[name].zero_grad()
+        #self.optimizers[name].zero_grad()
 
         # backward
         if self.params.fp16:
-            self.optimizers[name].backward(loss)
+            #self.optimizers[name].backward(loss)
+            scaler.scale(loss).backward()
         else:
             loss.backward()
 
         # clip gradients
         if self.params.clip_grad_norm > 0:
             #for module in modules:
-            if self.params.fp16:
-                self.optimizers[name].clip_master_grads(self.params.clip_grad_norm)
-            else:
-                for module in modules:
-                    clip_grad_norm_(getattr(self, module).parameters(), self.params.clip_grad_norm)
+            #if self.params.fp16:
+            #    self.optimizers[name].clip_master_grads(self.params.clip_grad_norm)
+            #else:
+            for module in modules:
+                clip_grad_norm_(getattr(self, module).parameters(), self.params.clip_grad_norm)
 
         if self.n_iter % self.params.accumulate_gradients == 0:
-            self.optimizers[name].step()
+            if self.params.fp16:
+                scaler.step(self.optimizers[name])
+                scaler.update()
+            else:
+                self.optimizers[name].step()
+
+            # zero grad
+            self.optimizers[name].zero_grad()
 
     def iter(self):
         """
@@ -911,18 +920,18 @@ class EncDecTrainer(Trainer):
 
         # cuda
         x1, len1, langs1, x2, len2, langs2, y = to_cuda(x1, len1, langs1, x2, len2, langs2, y)
+        with torch.cuda.amp.autocast(enabled=self.params.fp16):
+            # encode source sentence
+            enc1 = self.encoder('fwd', x=x1, lengths=len1, langs=langs1, causal=False)
+            enc1 = enc1.transpose(0, 1)
 
-        # encode source sentence
-        enc1 = self.encoder('fwd', x=x1, lengths=len1, langs=langs1, causal=False)
-        enc1 = enc1.transpose(0, 1)
+            # decode target sentence
+            dec2 = self.decoder('fwd', x=x2, lengths=len2, langs=langs2, causal=True, src_enc=enc1, src_len=len1)
 
-        # decode target sentence
-        dec2 = self.decoder('fwd', x=x2, lengths=len2, langs=langs2, causal=True, src_enc=enc1, src_len=len1)
-
-        # loss
-        _, loss = self.decoder('predict', tensor=dec2, pred_mask=pred_mask, y=y, get_scores=False)
-        self.stats[('AE-%s' % lang1) if lang1 == lang2 else ('MT-%s-%s' % (lang1, lang2))].append(loss.item())
-        loss = lambda_coeff * loss
+            # loss
+            _, loss = self.decoder('predict', tensor=dec2, pred_mask=pred_mask, y=y, get_scores=False)
+            self.stats[('AE-%s' % lang1) if lang1 == lang2 else ('MT-%s-%s' % (lang1, lang2))].append(loss.item())
+            loss = lambda_coeff * loss
 
         # optimize
         self.optimize(loss, ('encoder', 'decoder'))
