@@ -1,5 +1,10 @@
+# v0.2 : 20210505
 
-# Changes:
+1. update torch to 1.8
+1. remove apex and instead use torch's native AMP
+1. `unmass-prep` updated to include --para_train
+
+# v0.1
 
 1. python module. `pip install` -able
 1. Train without peeking into held out `test` set. Use test set when all the training is finished 
